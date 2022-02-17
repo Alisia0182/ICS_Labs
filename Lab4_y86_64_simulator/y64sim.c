@@ -11,7 +11,7 @@
 
 typedef enum {STAT_AOK, STAT_HLT, STAT_ADR, STAT_INS} stat_t;
 
-char *stat_names[] = { "AOK", "HLT", "ADR", "INS" };
+char *stat_names[] = { "AOK", "HLT", "ADR", "INS" };////????
 
 char *stat_name(stat_t e)
 {
@@ -126,7 +126,7 @@ bool_t diff_mem(mem_t *oldm, mem_t *newm, FILE *outfile)
 }
 
 
-reg_t reg_table[REG_NONE] = {
+reg_t reg_table[REG_NONE] = {//15
     {"%rax", REG_RAX},
     {"%rcx", REG_RCX},
     {"%rdx", REG_RDX},
@@ -244,10 +244,29 @@ int load_binfile(mem_t *m, FILE *f)
  * return
  *     val: the result of operation on argA and argB
  */
-long_t compute_alu(alu_t op, long_t argA, long_t argB)
-{
+long_t compute_alu(alu_t op, long_t argA, long_t argB){
+    //需不需要考虑溢出？
+    //A_NONE?
+    //int64_t
     long_t val = 0;
-   
+    switch(op){
+        case A_ADD:{
+            val = argA + argB;
+            break;
+        }
+        case A_SUB:{
+            val = argA - argB;
+            break;
+        }
+        case A_AND:{
+            val = argA & argB;
+            break;
+        }
+        case A_XOR:{
+            val = argA ^ argB;
+            break;
+        }
+    }
     return val;
 }
 
@@ -267,7 +286,14 @@ cc_t compute_cc(alu_t op, long_t argA, long_t argB, long_t val)
     bool_t zero = (val == 0);
     bool_t sign = ((int)val < 0);
     bool_t ovf = FALSE;
-
+    
+    //ovf: the sign of val will be strange
+    ovf = 
+      (op == A_ADD && argA > 0 && argB > 0 && val < 0)
+    ||(op == A_ADD && argA < 0 && argB < 0 && val > 0)
+    ||(op == A_SUB && argA > 0 && argB < 0 && val < 0)
+    ||(op == A_SUB && argA < 0 && argB > 0 && val > 0);
+    
     return PACK_CC(zero,sign,ovf);
 }
 
@@ -308,17 +334,41 @@ stat_t nexti(y64sim_t *sim)
     
     /* get code and function （1 byte) */
     if (!get_byte_val(sim->m, next_pc, &codefun)) {
+        //异常处理
         err_print("PC = 0x%lx, Invalid instruction address", sim->pc);
         return STAT_ADR;
     }
-    icode = GET_ICODE(codefun);
-    ifun = GET_FUN(codefun);
+    icode = GET_ICODE(codefun);//icode = codefun的高四位
+    ifun = GET_FUN(codefun);//ifun = codefun的低四位
     next_pc++;
 
     /* get registers if needed (1 byte) */
+    byte_t reg_byte;
+    regid_t regA;
+    regid_t regB;
     
+    if((icode > 1 && icode < 7) || icode >= 10){
+        if (!get_byte_val(sim->m, next_pc, &reg_byte)) {
+            err_print("PC = 0x%lx, Invalid instruction address", sim->pc);
+            return STAT_ADR;
+        }
+        regA = GET_REGA(reg_byte);
+        regB = GET_REGB(reg_byte);
+        next_pc++; //取出一字节 要++
+    }
 
     /* get immediate if needed (8 bytes) */
+    //little endian!
+    long_t imm = 0;
+    byte_t tmp_byte;
+    for(int byte_pos = 0; byte_pos < 8; ++ byte_pos){
+        if (!get_byte_val(sim->m, next_pc, &tmp_byte)) {
+            err_print("PC = 0x%lx, Invalid instruction address", sim->pc);
+            return STAT_ADR;
+        }
+        imm |= tmp_byte << (8 * byte_pos);
+        next_pc++;
+    }
     
 
     /* execute the instruction*/
@@ -330,8 +380,13 @@ stat_t nexti(y64sim_t *sim)
     	sim->pc = next_pc;
     	break;
       case I_RRMOVQ:  /* 2:x regA:regB */
+          set_reg_val(sim->r,regB, get_reg_val(sim->r,regA));
+          break;
       case I_IRMOVQ: /* 3:0 F:regB imm */
+          set_reg_val(sim->r,regB,imm);
+          break;
       case I_RMMOVQ: /* 4:0 regA:regB imm */
+          
       case I_MRMOVQ: /* 5:0 regB:regA imm */
       case I_ALU: /* 6:x regA:regB */
       case I_JMP: /* 7:x imm */
@@ -355,7 +410,7 @@ void usage(char *pname)
     exit(0);
 }
 
-int main(int argc, char *argv[])
+int main(int argc, char *argv[])////argc argv?????
 {
     FILE *binfile;
     int max_steps = MAX_STEP;
@@ -365,14 +420,14 @@ int main(int argc, char *argv[])
     stat_t e = STAT_AOK;
 
     if (argc < 2 || argc > 3)
-        usage(argv[0]);
+        usage(argv[0]);///???
 
     /* set max steps */
     if (argc > 2)
-        max_steps = atoi(argv[2]);
+        max_steps = atoi(argv[2]);///??
 
     /* load binary file to memory */
-    if (strcmp(argv[1]+(strlen(argv[1])-4), ".bin"))
+    if (strcmp(argv[1]+(strlen(argv[1])-4), ".bin"))////????
         usage(argv[0]); /* only support *.bin file */
     
     binfile = fopen(argv[1], "rb");

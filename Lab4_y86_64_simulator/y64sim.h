@@ -73,10 +73,10 @@ typedef struct mem {
 } mem_t;
 
 typedef struct y64sim {
-    long_t pc;
-    mem_t *r;
-    mem_t *m;
-    cc_t cc;
+    long_t pc;//int64_t
+    mem_t *r;//registers
+    mem_t *m;//memory
+    cc_t cc;//condition codes
 } y64sim_t;
 
 #endif
