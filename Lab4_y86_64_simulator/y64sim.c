@@ -8,6 +8,7 @@
 #define err_print(_s, _a ...) \
     fprintf(stdout, _s"\n", _a);
 
+//#define print_each_ins
 
 typedef enum {STAT_AOK, STAT_HLT, STAT_ADR, STAT_INS} stat_t;
 
@@ -248,6 +249,7 @@ long_t compute_alu(alu_t op, long_t argA, long_t argB){
     //需不需要考虑溢出？
     //A_NONE?
     //int64_t
+    //condition code在哪儿set
     long_t val = 0;
     switch(op){
         case A_ADD:{
@@ -266,6 +268,7 @@ long_t compute_alu(alu_t op, long_t argA, long_t argB){
             val = argA ^ argB;
             break;
         }
+        default:
     }
     return val;
 }
@@ -307,10 +310,53 @@ cc_t compute_cc(alu_t op, long_t argA, long_t argB, long_t val)
  *     TRUE: do it
  *     FALSE: not do it
  */
+//cc_t unsigned char 0ZSO
+//cond_t
 bool_t cond_doit(cc_t cc, cond_t cond) 
-{
+{//cc用正确格式调用
     bool_t doit = FALSE;
-
+    switch(cond){//P206 
+        case C_YES:{//rrmovq
+            doit = TRUE;
+            break;
+        }
+        case C_LE:{
+            //<=
+            //ZF | (SF ^ OF)
+            doit = (cc >= 0b100) || (cc == 0b010) || (cc == 0b001);
+            break;
+        }
+        case C_L:{
+            //SF ^ OF
+            doit = (cc == 0b110) || (cc == 0b101) 
+                || (cc == 0b010) || (cc == 0b001);
+            break;
+        }
+        case C_E:{
+            //ZF
+            doit = (cc >= 0b100); 
+            break;
+        }
+        case C_NE:{
+            doit = (cc < 0b100);
+            break;
+        } 
+        case C_GE:{
+            //~(SF^OF)
+            // 00 11
+            doit = (cc == 0b111)|| (cc == 0b100) 
+                || (cc == 0b011)|| (cc == 0b000);
+            break;
+        }
+        case C_G:{
+            //>
+            //011 000
+            doit = (cc == 0b011) || (cc == 0b000);
+            break;
+        }
+        default:
+    }
+    
     return doit;
 }
 
@@ -328,77 +374,192 @@ bool_t cond_doit(cc_t cc, cond_t cond)
 stat_t nexti(y64sim_t *sim)
 {
     byte_t codefun = 0; /* 1 byte */
-    itype_t icode;
-    alu_t ifun;
+    itype_t icode;//enum
+    alu_t ialu_fun;
+    cond_t ifun;
     long_t next_pc = sim->pc;
     
     /* get code and function （1 byte) */
-    if (!get_byte_val(sim->m, next_pc, &codefun)) {
+    if (!get_byte_val(sim->m, next_pc, &codefun)) {//越mem界
         //异常处理
         err_print("PC = 0x%lx, Invalid instruction address", sim->pc);
         return STAT_ADR;
     }
     icode = GET_ICODE(codefun);//icode = codefun的高四位
-    ifun = GET_FUN(codefun);//ifun = codefun的低四位
+    ifun = GET_FUN(codefun);
+    ialu_fun = GET_FUN(codefun);//ialu_fun = codefun的低四位
     next_pc++;
 
     /* get registers if needed (1 byte) */
-    byte_t reg_byte;
-    regid_t regA;
-    regid_t regB;
+    byte_t reg_byte = 0;
+    regid_t regA = REG_NONE;//enum
+    regid_t regB = REG_NONE;
     
     if((icode > 1 && icode < 7) || icode >= 10){
         if (!get_byte_val(sim->m, next_pc, &reg_byte)) {
             err_print("PC = 0x%lx, Invalid instruction address", sim->pc);
             return STAT_ADR;
         }
-        regA = GET_REGA(reg_byte);
-        regB = GET_REGB(reg_byte);
-        next_pc++; //取出一字节 要++
+        regA = GET_REGA(reg_byte);//F??????
+        regB = GET_REGB(reg_byte);//
+        next_pc++; //处理好一byte的信息
     }
 
     /* get immediate if needed (8 bytes) */
     //little endian!
+    
     long_t imm = 0;
-    byte_t tmp_byte;
-    for(int byte_pos = 0; byte_pos < 8; ++ byte_pos){
-        if (!get_byte_val(sim->m, next_pc, &tmp_byte)) {
+    if(icode >= 3 && icode <= 8 && icode != 6)
+    {
+        if(!get_long_val(sim->m,next_pc,&imm)){
             err_print("PC = 0x%lx, Invalid instruction address", sim->pc);
             return STAT_ADR;
         }
-        imm |= tmp_byte << (8 * byte_pos);
-        next_pc++;
+        next_pc += 8;
     }
-    
 
     /* execute the instruction*/
     switch (icode) {
-      case I_HALT: /* 0:0 */
+      case I_HALT: {/* 0:0 *///passed
+#ifdef print_each_ins
+          printf("I_HALT\n");
+#endif
+        if(ifun != C_YES){
+            return STAT_INS;
+        }
 	    return STAT_HLT;
-	    break;
-      case I_NOP: /* 1:0 */
+      }
+	    
+      case I_NOP: {/* 1:0 *///passed
+        if(ifun != C_YES) 
+            return STAT_INS;
     	sim->pc = next_pc;
     	break;
-      case I_RRMOVQ:  /* 2:x regA:regB */
+      }
+      case I_RRMOVQ: { /* 2:x regA:regB *///passed
+          bool_t doit = cond_doit(sim->cc,ifun);
+          if(doit){
           set_reg_val(sim->r,regB, get_reg_val(sim->r,regA));
+          }
+          sim->pc = next_pc;
           break;
-      case I_IRMOVQ: /* 3:0 F:regB imm */
+      }
+      case I_IRMOVQ: {/* 3:0 F:regB imm *///passed
+          if(ifun != C_YES)             
+              return STAT_INS;
           set_reg_val(sim->r,regB,imm);
+          sim->pc = next_pc;
           break;
-      case I_RMMOVQ: /* 4:0 regA:regB imm */
+      }
+      case I_RMMOVQ:{ /* 4:0 regA:regB imm *///passed
+          if(ifun != C_YES) 
+              return STAT_INS;
+          long_t val  = get_reg_val(sim->r, regA);
+          long_t addr = get_reg_val(sim->r, regB) + imm;
+          if(!set_long_val(sim->m, addr,val)){
+              err_print("PC = 0x%lx, Invalid memory address encountered", sim->pc);
+              return STAT_ADR;
+          }
+          sim->pc = next_pc;
+          break;
+    }
+      case I_MRMOVQ:{ /* 5:0 regA:regB imm *///passed
+          long_t addr = get_reg_val(sim->r, regB) + imm;
+          long_t val = 0;
+          if(!get_long_val(sim->m,addr,&val)){
+              err_print("PC = 0x%lx, Invalid data address 0x%lx", sim->pc, addr);
+              return STAT_ADR;
+          }
+          set_reg_val(sim->r,regA,val);
+          sim->pc = next_pc;
+          break;
+      }
+      case I_ALU:{ /* 6:x regA:regB *///passed
+          if(regA == REG_NONE || regB == REG_NONE){
+              err_print("PC = 0x%lx, Invalid register id encountered", sim->pc);
+              return STAT_INS;
+          }
+          long_t valA = get_reg_val(sim->r,regA);
+          long_t valB = get_reg_val(sim->r,regB);
+          long_t alu_result = compute_alu(ialu_fun,valB,valA);
+          set_reg_val(sim->r,regB,alu_result);
+          sim->cc = compute_cc(ialu_fun,valB,valA,alu_result);
+          sim->pc = next_pc;
+          break;
+      }
+      case I_JMP:{ /* 7:x imm *///passed
+          if(ifun >= C_NONE){
+              err_print("PC = 0x%lx, Invalid instruction encountered", sim->pc);
+              return STAT_INS;
+          }
+          bool_t doit = cond_doit(sim->cc,ifun);
+          if(doit){
+              sim->pc = imm;
+          }else{
+              sim->pc = next_pc;
+          }
+          break;
+      }
+      case I_CALL:{ /* 8:x imm *///passed
+          //把next_pc塞到stack里去 rsp -= 8
+          //sim->pc = imm
+          //%rsp
+          long_t addr = get_reg_val(sim->r,REG_RSP);
+          addr -= 8;
+          set_reg_val(sim->r,REG_RSP,addr);
+          if(!set_long_val(sim->m,addr,next_pc)){
+              err_print("PC = 0x%lx, Invalid stack address 0x%lx", sim->pc, addr);
+              return STAT_ADR;
+          }
           
-      case I_MRMOVQ: /* 5:0 regB:regA imm */
-      case I_ALU: /* 6:x regA:regB */
-      case I_JMP: /* 7:x imm */
-      case I_CALL: /* 8:x imm */
-      case I_RET: /* 9:0 */
-      case I_PUSHQ: /* A:0 regA:F */
-      case I_POPQ: /* B:0 regA:F */
-    	return STAT_INS; /* unsupported now, replace it with your implementation */
-    	break;
-      default:
+          sim->pc = imm;
+          break;
+      }
+      case I_RET:{ /* 9:0 */
+          if(ifun != C_YES) 
+              return STAT_INS;
+          long_t addr = get_reg_val(sim->r,REG_RSP);
+          long_t set_pc = 0;
+          if(!get_long_val(sim->m,addr,&set_pc)){
+              err_print("PC = 0x%lx, Invalid stack address 0x%lx", sim->pc, addr);
+              return STAT_ADR;
+          }
+          set_reg_val(sim->r, REG_RSP, addr + 8);
+          sim->pc = set_pc;
+          break;
+      }
+      case I_PUSHQ:{ /* A:0 regA:F */
+        if(ifun != C_YES || regB != REG_NONE || regA == REG_NONE) 
+            return STAT_INS;
+        long_t addr = get_reg_val(sim->r,REG_RSP);
+        long_t push_val = get_reg_val(sim->r,regA);
+        addr -= 8;
+        set_reg_val(sim->r,REG_RSP,addr);//挪动栈顶指针
+        if(!set_long_val(sim->m,addr,push_val)){//push to the stack
+            err_print("PC = 0x%lx, Invalid stack address 0x%lx", sim->pc, addr);
+            return STAT_ADR;
+        }
+        sim->pc = next_pc;
+        break;
+      }
+      case I_POPQ:{ /* B:0 regA:F */
+          if(ifun != C_YES || regB != REG_NONE || regA == REG_NONE) 
+            return STAT_INS;
+          long_t addr = get_reg_val(sim->r,REG_RSP);
+          long_t pop_val = 0;
+          if(!get_long_val(sim->m,addr,&pop_val)){//pop from the stack
+              err_print("PC = 0x%lx, Invalid stack address 0x%lx", sim->pc, addr);
+              return STAT_ADR;
+          }
+          set_reg_val(sim->r, REG_RSP, addr + 8);
+          set_reg_val(sim->r,regA,pop_val);
+          sim->pc = next_pc;
+          break;
+      }
+      default:{
     	err_print("PC = 0x%lx, Invalid instruction %.2x", sim->pc, codefun);
     	return STAT_INS;
+      }
     }
     
     return STAT_AOK;
@@ -410,7 +571,7 @@ void usage(char *pname)
     exit(0);
 }
 
-int main(int argc, char *argv[])////argc argv?????
+int main(int argc, char *argv[])//argc argv???
 {
     FILE *binfile;
     int max_steps = MAX_STEP;
@@ -427,7 +588,7 @@ int main(int argc, char *argv[])////argc argv?????
         max_steps = atoi(argv[2]);///??
 
     /* load binary file to memory */
-    if (strcmp(argv[1]+(strlen(argv[1])-4), ".bin"))////????
+    if (strcmp(argv[1]+(strlen(argv[1])-4), ".bin"))
         usage(argv[0]); /* only support *.bin file */
     
     binfile = fopen(argv[1], "rb");

@@ -44,14 +44,14 @@ typedef struct reg {
 typedef enum { I_HALT = 0, I_NOP, I_RRMOVQ, I_IRMOVQ, I_RMMOVQ, I_MRMOVQ,
     I_ALU, I_JMP, I_CALL, I_RET, I_PUSHQ, I_POPQ, I_DIRECTIVE } itype_t;
 
-/* Function code (default) */
+/* Function code */
 typedef enum { F_NONE } func_t;
 
 /* ALU code */
 typedef enum { A_ADD, A_SUB, A_AND, A_XOR, A_NONE } alu_t;
 
 /* Condition code */
-typedef enum { C_YES, C_LE, C_L, C_E, C_NE, C_GE, C_G } cond_t;
+typedef enum { C_YES, C_LE, C_L, C_E, C_NE, C_GE, C_G,C_NONE } cond_t;
 
 /* Directive code */
 typedef enum { D_DATA, D_POS, D_ALIGN } dtv_t;
