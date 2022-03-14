@@ -77,13 +77,7 @@ typedef struct symbol {
     int64_t addr;
     //where to jump when call this symbol, the corresponding address of symbol
     struct symbol *next;
-    /*
-    symbol(char * _name,int64_t _addr,symbol *_next)
-    {
-        name = _name;
-        addr = _addr;
-        next = _next;
-    }*/
+    // problem: how to write a constructor for symbol_t
 }symbol_t;
 
 /* binary code need to be relocated */
@@ -91,29 +85,6 @@ typedef struct reloc {
     bin_t *y64bin;
     char *name;//the name of symbol
     struct reloc *next;
-    /*
-    struct reloc(bin_t* _y64bin, char* _name,struct reloc * _next):
-    y64bin(_y64bin), name(_name), next(_next)
-    {}
-    
-    reloc(bin_t * _y64bin, char * _name, reloc * _next):
-    {
-        y64bin = _y64bin;
-        name = _name;
-        next = _next;
-    }
-    */
 }reloc_t;
-
-    /*
-struct reloc_t{
-    bin_t * y64bin;
-    char * name;
-    reloc_t * next;
-    reloc_t(bin_t * _y64bin, char * _name, reloc_t * _next):
-    y64bin(_y64bin),name(_name),next(_next)
-    {}
-} ;   
-*/
 #endif
 
