@@ -97,7 +97,7 @@ instr_t *find_instr(char *name)
 /* symbol table (don't forget to init and finit it) */
 symbol_t *symtab = NULL;
 
-/* y
+/* 
  * find_symbol: scan table to find the symbol
  * args
  *     name: the name of symbol
@@ -111,11 +111,11 @@ symbol_t *find_symbol(char *name)
     symbol_t * sym_pointer = symtab->next;
     while(sym_pointer)
     {
-        if(sym_pointer->name&&!strcmp(sym_pointer->name,name))//find bug2: cannot do cmp for unallocated area?
+        if(sym_pointer->name&&!strcmp(sym_pointer->name,name))
+            //find bug2: cannot do cmp for unallocated area?
             break;
         sym_pointer = sym_pointer->next;
     }
-    //err_print("L119%d",sym_pointer);
     return sym_pointer;
 }
 
@@ -137,7 +137,6 @@ int add_symbol(char *name)
 
     /* create new symbol_t (don't forget to free it)*/
     //symtab will be freed in finit
-    
     symbol_t * new_symbol = (symbol_t *)malloc(sizeof(symbol_t));
     memset(new_symbol,0,sizeof(symbol_t));
     new_symbol->name = name;
@@ -150,7 +149,6 @@ int add_symbol(char *name)
 
 /* relocation table (don't forget to init and finit it) */
 reloc_t *reltab = NULL;
-
 /*
  * add_reloc: add a new relocation to the relocation table
  * args
@@ -211,16 +209,12 @@ typedef enum { PARSE_ERR=-1, PARSE_REG, PARSE_DIGIT, PARSE_SYMBOL,
  *                            and store the pointer of the instruction to 'inst'
  *     PARSE_ERR: error, the value of 'ptr' and 'inst' are undefined
  */
-
-
-
 parse_t parse_instr(char **ptr, instr_t **inst)
 {
     /* skip the blank ' '|| '\t' not '\0'*/
     //check end
     SKIP_AND_CHECK(*ptr);
     /* find_instr */
-    //check end???
     instr_t * found_instr = find_instr(*ptr);
 
     /* set 'ptr' and 'inst' */
@@ -244,8 +238,8 @@ parse_t parse_instr(char **ptr, instr_t **inst)
 parse_t parse_delim(char **ptr, char delim)
 {
     /* skip the blank and check */
-    SKIP_AND_CHECK(*ptr);
     //check end???
+    SKIP_AND_CHECK(*ptr);
     /* set 'ptr' */
     if(**ptr == delim){
         ++(*ptr);
@@ -334,7 +328,6 @@ parse_t parse_digit(char **ptr, long *value)
     /* calculate the digit, (NOTE: see strtoul()) */
     // if base is 0, the numeric base if auto-detected
     /* set 'ptr' and 'value' */
-    
     *value = strtoul(*ptr,ptr,0);
     return PARSE_DIGIT;
 }
@@ -361,7 +354,6 @@ parse_t parse_imm(char **ptr, char **name, long *value)
     SKIP_AND_CHECK(*ptr);
     /* if IS_IMM, then parse the digit */
     /* set 'ptr' and 'value' */
-    
     if(IS_IMM(*ptr))
     {
         if(parse_delim(ptr, '$') == -1)
@@ -461,12 +453,10 @@ parse_t parse_label(char **ptr, char **name)
         {
             if(*copied_ptr == ':')
             {//有冒号才修改*ptr
-                //err_print("L461: len %d",len);
                 *name = (char *) malloc(sizeof(char) * (len+1));
                 *(*name+len) = '\0';
                 strncpy(*name,*ptr,len);
                 *ptr += (len+1);
-                //err_print("L466：%s",*name);
                 return PARSE_LABEL;
             }
             ++len;
@@ -498,10 +488,7 @@ type_t parse_line(line_t *line)
     //SKIP_AND_CHECK(line->y64asm);
     char * copied_y64asm_p = line->y64asm;
     SKIP_AND_CHECK(copied_y64asm_p);//QAQ!! bug1
-    //err_print("L498:%s",copied_y64asm_p);
     //protect the char *(y64asm) in "line", so that it will not be changed 
-    
-    //err_print("L496: %s",line->y64asm);
     
     /* is a comment ? */
     char* _label;
@@ -512,12 +499,10 @@ type_t parse_line(line_t *line)
     }
     /* is a label ? */
     if(parse_label(&copied_y64asm_p,&_label) == PARSE_LABEL){//this line
-        //err_print("L509");
         if(add_symbol(_label) == -1){
             err_print("Dup symbol:%s", _label);
             return TYPE_ERR;
         }
-        //err_print("L513");
         line->type = TYPE_INS;
         (line->y64bin).addr = vmaddr;///有啥用呢？ 有用有用
         (line->y64bin).bytes = 0;//may be changed by an instr followed
@@ -549,19 +534,10 @@ type_t parse_line(line_t *line)
                 break;
             case I_RRMOVQ:
             {
-                /*
-                if(     parse_reg(&copied_y64asm_p,&regA) == PARSE_ERR
-                    ||  parse_delim(&copied_y64asm_p,',') == PARSE_ERR
-                    ||  parse_reg(&copied_y64asm_p,&regB) == PARSE_ERR)
-                {
-                    err_print("ANYWAY, see me at nearly line 520");
-                    line->type = TYPE_ERR;
-                    break;
-                }*/
                 if(parse_reg(&copied_y64asm_p,&regA) == PARSE_ERR)
                 {
                     
-                    err_print("ANYWAY, see me at nearly line 520");
+                    err_print("Invalid REG");
                     line->type = TYPE_ERR;
                     break;
                 }
@@ -574,7 +550,7 @@ type_t parse_line(line_t *line)
                 if(parse_reg(&copied_y64asm_p,&regB) == PARSE_ERR)
                 {
                     
-                    err_print("ANYWAY, see me at nearly line 520");
+                    err_print("Invalid REG");
                     line->type = TYPE_ERR;
                     break;
                 }
@@ -584,26 +560,17 @@ type_t parse_line(line_t *line)
             case I_IRMOVQ:
             {
                 parse_t parse_1 = parse_imm(&copied_y64asm_p,&_name,&_value);
-                /*
-                if(   parse_1==PARSE_ERR
-                    ||parse_delim(&copied_y64asm_p,',') == PARSE_ERR
-                    ||parse_reg(&copied_y64asm_p,&regB) == PARSE_ERR)
-                {
-                    err_print("nearly line 544");
-                    line->type = TYPE_ERR;
-                    break;
-                }*/
                 if(parse_1 == PARSE_ERR){
                     err_print("Invalid Immediate");
                     line->type = TYPE_ERR;
                     break;
                 }else if(parse_delim(&copied_y64asm_p,',') == PARSE_ERR){
-                    err_print("L568:HI");
+                    err_print("Invalid ','");
                     line->type = TYPE_ERR;
                     break;
                 }else if(parse_reg(&copied_y64asm_p,&regB) == PARSE_ERR){
                     
-                    err_print("L573:HI");
+                    err_print("Invalid REG");
                     line->type = TYPE_ERR;
                     break;
                 }
@@ -620,11 +587,19 @@ type_t parse_line(line_t *line)
             }
             case I_RMMOVQ:
             {
-                if(   parse_reg(&copied_y64asm_p,&regA) == PARSE_ERR
-                    ||parse_delim(&copied_y64asm_p,',') == PARSE_ERR
-                    ||parse_mem(&copied_y64asm_p,&_value,&regB) == PARSE_ERR)
+                if(parse_reg(&copied_y64asm_p,&regA) == PARSE_ERR)
                 {
-                    err_print("nearly line 565");
+                    err_print("Invalid REG");
+                    break;
+                }
+                if(parse_delim(&copied_y64asm_p,',') == PARSE_ERR)
+                {
+                    err_print("Invalid ','");
+                    break;
+                }
+                if(parse_mem(&copied_y64asm_p,&_value,&regB) == PARSE_ERR)
+                {
+                    err_print("Invalid MEM");
                     break;
                 }
                 (line->y64bin).codes[1] = HPACK(regA,regB);
@@ -634,14 +609,6 @@ type_t parse_line(line_t *line)
             }
             case I_MRMOVQ:
             {
-                /*
-                if(parse_mem(&copied_y64asm_p,&_value,&regB) == PARSE_ERR
-                ||parse_delim(&copied_y64asm_p,',') == PARSE_ERR
-                ||parse_reg(&copied_y64asm_p,&regA) == PARSE_ERR)
-                {
-                    err_print("nearly line 579");
-                    break;
-                }*/
                 if(parse_mem(&copied_y64asm_p,&_value,&regB) == PARSE_ERR)
                 {
                     err_print("Invalid MEM");
@@ -664,14 +631,6 @@ type_t parse_line(line_t *line)
             }
             case I_ALU:
             {
-                /*
-                if(parse_reg(&copied_y64asm_p,&regA) == PARSE_ERR
-                  || parse_delim(&copied_y64asm_p,',') == PARSE_ERR
-                  ||parse_reg(&copied_y64asm_p,&regB) == PARSE_ERR)
-                {
-                    err_print("nearly line 579");
-                    break;
-                }*/
                 if(parse_reg(&copied_y64asm_p,&regA) == PARSE_ERR)
                 {
                     err_print("Invalid REG");
@@ -687,7 +646,6 @@ type_t parse_line(line_t *line)
                     err_print("Invalid REG");
                     break;
                 }
-                
                 (line->y64bin).codes[1] = HPACK(regA,regB);
                 break;
             }
@@ -723,7 +681,7 @@ type_t parse_line(line_t *line)
                         parse_t parse_result = parse_data(&copied_y64asm_p,&_name,&_value);
                         if(parse_result == PARSE_ERR)
                         {
-                            err_print("nearly line 633");
+                            err_print("Invalid DATA");
                         }
                         else if(parse_result == PARSE_DIGIT){
                 write_bytes_little_endian(_value,
@@ -737,7 +695,7 @@ type_t parse_line(line_t *line)
                     {
                         if(parse_digit(&copied_y64asm_p,&_value) == PARSE_ERR)
                         {
-                            err_print("nearly line 645");
+                            err_print("Invalid DIGIT");
                             break;
                         }
                         vmaddr = _value;
@@ -748,7 +706,7 @@ type_t parse_line(line_t *line)
                     {
                         if(parse_digit(&copied_y64asm_p,&_value) == PARSE_ERR)
                         {
-                            err_print("nearly line 656");
+                            err_print("Invalid DIGIT");
                             break;
                         }
                         long tmp = vmaddr%_value;
@@ -763,7 +721,6 @@ type_t parse_line(line_t *line)
     //汇编语言文件 每行末尾注释可以不处理吧QAQ
     SKIP_BLANK(copied_y64asm_p);
     if(!IS_COMMENT(copied_y64asm_p) && !IS_END(copied_y64asm_p)){
-        //err_print("Assemble y64 code error");
         line->type = TYPE_ERR;
         return TYPE_ERR;
     }
