@@ -1,0 +1,25 @@
+# copies a block of words from one part of memory to another
+# compute the checksum (Xor) of all words
+
+.align 8
+# Source block
+src:
+        .quad 0x00a
+        .quad 0x0b0
+        .quad 0xc00
+# Destination block
+dest:
+        .quad 0x111
+        .quad 0x222
+        .quad 0x333
+
+
+# set up a stack frame
+
+
+# invoke a function copy_block
+
+
+# halt
+
+

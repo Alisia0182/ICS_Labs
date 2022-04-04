@@ -354,9 +354,16 @@ int fitsBits(int x, int n) {
  *   Legal ops: ! ~ & ^ | + << >>
  *   Max ops: 6
  *   Rating: 2
+ * 00  0
+ * 01 1000
+ * 10 10000 
+ * 11 11000
  */
 //3
 int getByte(int x, int n) {
+   n = n << 3;
+   x = (x >> n) & 0xff;
+   return x;
 }
 /* 
  * isGreater - if x > y  then return 1, else return 0 
@@ -378,7 +385,7 @@ int isGreater(int x, int y) {
 //5
 int isNonNegative(int x) {
 }
-/* 
+/* return 1
  * isNotEqual - return 0 if x == y, and 1 otherwise 
  *   Examples: isNotEqual(5,5) = 0, isNotEqual(4,5) = 1
  *   Legal ops: ! ~ & ^ | + << >>
