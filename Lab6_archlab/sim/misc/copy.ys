@@ -1,7 +1,15 @@
+# Name: 万金易
+# ID:   519021911049
 # copies a block of words from one part of memory to another
 # compute the checksum (Xor) of all words
 
-.align 8
+# Execution begins at address 0
+        .pos 0
+        irmovq  stack, %rsp          # Set up stack pointer
+        call    main                 # Execute main program
+        halt                         # Terminate program
+
+        .align 8
 # Source block
 src:
         .quad 0x00a
@@ -13,13 +21,30 @@ dest:
         .quad 0x222
         .quad 0x333
 
+main:
+        irmovq  src, %rdi               # save the 1st argument in %rdi
+        irmovq  dest,%rsi               # save the 2nd argument in %rsi
+        irmovq  $3,  %rdx               # save the 3rd argument in %rdx
+        call    copy_block              # invoke func copy_block(src,dest,len)
+        ret
 
-# set up a stack frame
-
-
-# invoke a function copy_block
-
-
-# halt
-
-
+# long copy_block(long * src,long *dest, long len)
+copy_block:
+        xorq    %rax,%rax               # result = 0
+        jmp     test                    # test
+loop:
+        mrmovq  (%rdi),%r8              # val = *src
+        irmovq  $8, %r9                 # Constant 8
+        irmovq  $1, %r10                # Constant 1
+        addq    %r9,%rdi                # src++
+        rmmovq  %r8,(%rsi)              # *dest = val
+        addq    %r9,%rsi                # dest++
+        xorq    %r8,%rax                # result ^= val
+        subq    %r10,%rdx               # len--
+test:
+        andq    %rdx,%rdx               # set CC
+        jg      loop                    # loop while len > 0
+        ret
+# Stack starts here and grows to lower address
+        .pos 0x200
+stack:

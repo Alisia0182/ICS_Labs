@@ -1,3 +1,6 @@
+# name: 万金易
+# ID:   519021911049
+
 #/* $begin seq-all-hcl */
 ####################################################################
 #  HCL Description of Control for Single Cycle Y86-64 Processor SEQ   #
