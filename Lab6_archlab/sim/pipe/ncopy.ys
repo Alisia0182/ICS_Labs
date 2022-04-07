@@ -4,8 +4,6 @@
 ##################################################################
 # ncopy.ys - Copy a src block of len words to dst.
 # Return the number of positive words (>0) contained in src.
-# Name: 	万金易
-# ID:   	519021911049
 # Describe how and why you modified the baseline code.
 # 1. 	use iaddq to replace 'irmov and opq' :
 #		2 instructions will be reduced to 1 instruction
