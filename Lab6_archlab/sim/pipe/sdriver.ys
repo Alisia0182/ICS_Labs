@@ -34,12 +34,12 @@ ncopy:
 
 ##################################################################
 # You can modify this portion
-			iaddq  	$-9 ,%rdx   	# if len < 9, goto Tail
+			iaddq  	$-10 ,%rdx   	# if len < 10, goto Tail
 			jl		Tail
-# Loop 9x1
-# [9,+inf)		
-Loop9x1:
-	# read 9 val from src
+# Loop 10x1
+# [10,+inf)		
+Loop10x1:
+	# read 10 val from src
 			mrmovq 	 (%rdi),%rcx
 			mrmovq 	8(%rdi),%rbx
 			mrmovq 16(%rdi),%rbp
@@ -49,6 +49,7 @@ Loop9x1:
 			mrmovq 48(%rdi),%r11
 			mrmovq 56(%rdi),%r12
 			mrmovq 64(%rdi),%r13
+			mrmovq 72(%rdi),%r14
 	# store to dst
 			rmmovq %rcx,  (%rsi)
 			rmmovq %rbx, 8(%rsi)
@@ -59,6 +60,7 @@ Loop9x1:
 			rmmovq %r11,48(%rsi)
 			rmmovq %r12,56(%rsi)
 			rmmovq %r13,64(%rsi)
+			rmmovq %r14,72(%rsi)
 			
 			andq	%rcx,%rcx	# val0 <= 0?
 			jle		test1		# if so, goto test1
@@ -93,50 +95,52 @@ test7:
 			iaddq	$1,%rax		# count ++
 test8:
 			andq	%r13,%r13	# val8 <= 0?
+			jle		test9		# if so, goto test9
+			iaddq	$1,%rax		# count ++
+test9:
+			andq	%r14,%r14	# val8 <= 0?
 			jle		LoopEnd		# if so, goto loop end
 			iaddq	$1,%rax		# count ++
 LoopEnd:	
-			iaddq	$72 ,%rdi	# src += 9
-			iaddq	$72 ,%rsi	# dst += 9
-			iaddq	$-9,%rdx	# len -= 10, set CC
-			jge		Loop9x1		# [9,+inf), goto Loop9x1
-# (-inf,8]
-# [1,8]
-# [-9,-1]
-# -9 -8 -7
-# -2 -1 0 1 2 3 4 5 6 
-#         -2 -1 0 1 2 3 
-# 0 1 2
-# 3 4 5
-# 6 7 8
-
+			iaddq	$80 ,%rdi	# src += 10
+			iaddq	$80 ,%rsi	# dst += 10
+			iaddq	$-10,%rdx	# len -= 10, set CC
+			jge		Loop10x1	# [10,+inf), goto Loop10x1
+# (-inf,9]
+# [0,9]
+# [-10,-1]
+# -10 -9 -8 -7
 Tail:
-			iaddq	$7,%rdx			# if len <= 2
-			jle		L02
 			mrmovq	(%rdi),%rcx
-			iaddq	$-3,%rdx
-			jg		L68
-			jmp		L35
-L02:
-			iaddq	$1,%rdx
+			iaddq	$7, %rdx
+			jge		L39
+L02:		# [-3 -2 -1]
+			iaddq	$2,%rdx
 			jl		Done
-			mrmovq	(%rdi),%rcx
-			rmmovq  %rcx,(%rsi)		# bubble
+			rmmovq	%rcx,(%rsi)
 			je		Left1
-			jg		Left2
-L35:
-
-			rmmovq  %rcx,(%rsi)
-			iaddq	$1,%rdx
-			je		Left4
-			jg		Left5
-			jmp		Left3
-L68:
-			rmmovq  %rcx,(%rsi)
+			jmp		Left2
+L46:		iaddq	$2,%rdx
+			jl		Left4
+			je		Left5
+			jg		Left6
+L39:
+			rmmovq	%rcx,(%rsi)
+			je		Left3
+L49:		# [1 2 3 4 5 6]
+			iaddq	$-4,%rdx
+			jl		L46				# [-3 -2 -1]
+			je		Left7			# 0
+L89:								# [1 2]
 			iaddq	$-2,%rdx
-			je		Left7
-			jg		Left8
-			jmp		Left6
+			jl		Left8
+Left9:
+			andq	%rcx,%rcx		# test val <= 0?
+			mrmovq 	64(%rdi),%rcx	# read val from src
+			jle		Tag9
+			iaddq	$1,%rax			# count++
+	Tag9:
+			rmmovq 	%rcx,64(%rsi)	# ... and store it to dst
 Left8:
 			andq	%rcx,%rcx		# test val <= 0?
 			mrmovq 	56(%rdi),%rcx	# read val from src
@@ -207,9 +211,9 @@ EndFun:
 	.align 8
 src:
 	.quad -1
-	.quad 2
+	.quad -2
 	.quad 3
-	.quad -4
+	.quad 4
 	.quad 0xbcdefa # This shouldn't get moved
 
 	.align 16

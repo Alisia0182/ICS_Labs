@@ -7,11 +7,46 @@
 # Name: 	万金易
 # ID:   	519021911049
 # Describe how and why you modified the baseline code.
-# 1. add iaddq
-# 2. we will set CC at iaddq, so if put iaddq $-1,%rdx before #    jp loop there will be no need to calculate andq %rdx,
-#    %rdx.
-# 3. 十路展开 + 消除bubble + 挑选过节点的三叉查找树定位剩余部分
-# 
+# 1. 	use iaddq to replace 'irmov and opq' :
+#		2 instructions will be reduced to 1 instruction
+# 2.	apply 10x1 loop unrolling:
+#		reduce the effect of loop overhead
+# 3.	remaining elements([0,9], less than 10 elements):
+#		the logic is similar to 'switch case' without 'break' in C++
+#		when jump to case 9, case 9 will also do things written in case 8 
+#		7 ... 0
+#		switch{
+#			case 9:
+#			case 8:
+#			case 7:
+#			case 6:
+#			case 5:
+#			case 4:
+#			case 3:
+#			case 2:
+#			case 1:
+#			case 0:
+#		}
+# 4.	use a ternary tree to jmp to different 'cases' according to 
+#		different remainder:
+#					[0,9]
+#		[0,2]		  3			[4,9]
+#		0,1,2				[4,6] 7  [8,9]
+#							4,5,6	  8,9	
+#		See Line 136-158
+#		why ternary? when we do an iaddq,we can divide the original range #		into 3 sections: [negtive] {0} [positive]
+#		
+# 5.	insert "count++" (of the previous element) between 
+#		current 'load' and 'use'when dealing with the remains, :
+#		see line 161-165
+#       avoid 'load/use' data hazard
+#		need to move the 1st element(which will be moved except the 
+#		remain num is 0) beforehand so that every element has 
+#		former element(see line 136 142 150)
+# 6. 	we will set CC at iaddq, so if put iaddq $-1,%rdx before   jp
+# 		loop there will be no need to calculate andq %rdx,%rdx.
+# 7.	reorder some sections:
+#		to reduce the num of jmp on average 
 # 
 ##################################################################
 # Do not modify this portion
@@ -21,12 +56,12 @@ ncopy:
 
 ##################################################################
 # You can modify this portion
-			iaddq  	$-9 ,%rdx   	# if len < 9, goto Tail
+			iaddq  	$-10 ,%rdx   	# if len < 10, goto Tail
 			jl		Tail
-# Loop 9x1
-# [9,+inf)		
-Loop9x1:
-	# read 9 val from src
+# Loop 10x1
+# [10,+inf)		
+Loop10x1:
+	# read 10 val from src
 			mrmovq 	 (%rdi),%rcx
 			mrmovq 	8(%rdi),%rbx
 			mrmovq 16(%rdi),%rbp
@@ -36,6 +71,7 @@ Loop9x1:
 			mrmovq 48(%rdi),%r11
 			mrmovq 56(%rdi),%r12
 			mrmovq 64(%rdi),%r13
+			mrmovq 72(%rdi),%r14
 	# store to dst
 			rmmovq %rcx,  (%rsi)
 			rmmovq %rbx, 8(%rsi)
@@ -46,6 +82,7 @@ Loop9x1:
 			rmmovq %r11,48(%rsi)
 			rmmovq %r12,56(%rsi)
 			rmmovq %r13,64(%rsi)
+			rmmovq %r14,72(%rsi)
 			
 			andq	%rcx,%rcx	# val0 <= 0?
 			jle		test1		# if so, goto test1
@@ -80,49 +117,52 @@ test7:
 			iaddq	$1,%rax		# count ++
 test8:
 			andq	%r13,%r13	# val8 <= 0?
+			jle		test9		# if so, goto test9
+			iaddq	$1,%rax		# count ++
+test9:
+			andq	%r14,%r14	# val8 <= 0?
 			jle		LoopEnd		# if so, goto loop end
 			iaddq	$1,%rax		# count ++
 LoopEnd:	
-			iaddq	$72 ,%rdi	# src += 9
-			iaddq	$72 ,%rsi	# dst += 9
-			iaddq	$-9,%rdx	# len -= 10, set CC
-			jge		Loop9x1		# [9,+inf), goto Loop9x1
-# (-inf,8]
-# [1,8]
-# [-9,-1]
-# -9 -8 -7
-# -2 -1 0 1 2 3 4 5 6 
-#         -2 -1 0 1 2 3 
-# 0 1 2
-# 3 4 5
-# 6 7 8
-
+			iaddq	$80 ,%rdi	# src += 10
+			iaddq	$80 ,%rsi	# dst += 10
+			iaddq	$-10,%rdx	# len -= 10, set CC
+			jge		Loop10x1	# [10,+inf), goto Loop10x1
+# (-inf,9]
+# [0,9]
+# [-10,-1]
+# -10 -9 -8 -7
 Tail:
-			iaddq	$7,%rdx			# if len <= 2
-			jle		L02
 			mrmovq	(%rdi),%rcx
-			iaddq	$-3,%rdx
-			jg		L68
-			jmp		L35
-L02:
-			iaddq	$1,%rdx
+			iaddq	$7, %rdx
+			jge		L39
+L02:		# [-3 -2 -1]
+			iaddq	$2,%rdx
 			jl		Done
-			mrmovq	(%rdi),%rcx
-			rmmovq  %rcx,(%rsi)		# bubble
+			rmmovq	%rcx,(%rsi)
 			je		Left1
-			jg		Left2
-L35:
-			rmmovq  %rcx,(%rsi)
-			iaddq	$1,%rdx
-			je		Left4
-			jg		Left5
-			jmp		Left3
-L68:
-			rmmovq  %rcx,(%rsi)
-			iaddq	$-2,%rdx
-			je		Left7
-			jg		Left8
+			jmp		Left2
+L46:		iaddq	$2,%rdx
+			jl		Left4
+			je		Left5
 			jmp		Left6
+L39:
+			rmmovq	%rcx,(%rsi)
+			je		Left3
+L49:		# [1 2 3 4 5 6]
+			iaddq	$-4,%rdx
+			jl		L46				# [-3 -2 -1]
+			je		Left7			# 0
+L89:								# [1 2]
+			iaddq	$-2,%rdx
+			jl		Left8
+Left9:
+			andq	%rcx,%rcx		# test val <= 0?
+			mrmovq 	64(%rdi),%rcx	# read val from src
+			jle		Tag9
+			iaddq	$1,%rax			# count++
+	Tag9:
+			rmmovq 	%rcx,64(%rsi)	# ... and store it to dst
 Left8:
 			andq	%rcx,%rcx		# test val <= 0?
 			mrmovq 	56(%rdi),%rcx	# read val from src
