@@ -105,3 +105,49 @@ chmod +x ./pipe/*.pl ./pipe/pipe.tcl ./ptest/*.pl
 # Knowledges?
 1. callee-save registers?
    
+
+   # Name: 万金易
+# ID:   519021911049
+#/* $begin ncopy-ys */
+##################################################################
+# ncopy.ys - Copy a src block of len words to dst.
+# Return the number of positive words (>0) contained in src.
+# Name: 	万金易
+# ID:   	519021911049
+# Describe how and why you modified the baseline code.
+# 1. add iaddq
+# 2. we will set CC at iaddq, so if put iaddq $-1,%rdx before jp loop
+#    there will be no need to calculate andq %rdx,%rdx.
+##################################################################
+# Do not modify this portion
+# Function prologue.
+# %rdi = src, %rsi = dst, %rdx = len
+ncopy:
+
+##################################################################
+# You can modify this portion
+	# Loop header
+	# xorq %rax,%rax		# count = 0;
+	andq %rdx,%rdx		# len <= 0?
+	jle Done		# if so, goto Done:
+
+Loop:	
+	mrmovq (%rdi), %r10	# read val from src...
+	rmmovq %r10, (%rsi)	# ...and store it to dst
+	andq %r10, %r10		# val <= 0?
+	jle Npos		# if so, goto Npos:
+	iaddq $1,%rax		# count++
+Npos:	
+	iaddq $8, %rdi		# src++
+	iaddq $8,%rsi		# dst++
+	iaddq $-1,%rdx		# len--
+	jg Loop			# if so, goto Loop:
+##################################################################
+# Do not modify the following section of code
+# Function epilogue.
+Done:
+	ret
+##################################################################
+# Keep the following label at the end of your function
+End:
+#/* $end ncopy-ys */
